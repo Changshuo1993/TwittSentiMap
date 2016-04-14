@@ -85,8 +85,9 @@
     </style>
     <script src="https://maps.googleapis.com/maps/api/js"></script>
     <script>
-    var map;
-    var infowindow = null;
+        var map;
+    var markers = [];
+    var infoWindow = new google.maps.InfoWindow({});
     (function () {
             google.maps.Map.prototype.markers = new Array();
             google.maps.Map.prototype.addMarker = function (marker) {
@@ -109,9 +110,8 @@
             center: {lat: 40.7127, lng: -90},
             zoom: 2
         });
-        return map;
     }
-    function createMarker(data) {
+    function createMarker(data,status) {
         var location = new google.maps.LatLng(data.Lat,data.Lon);
         var user=data.Usr;
         var time=data.Time;
@@ -140,24 +140,25 @@
                     new google.maps.Size(30, 30)
                 )
         };
-        var marker = new google.maps.Marker({
-                position: location,
-                map: map,
-                icon: icons[sentiment]
-            });
+        var markerOptions = {
+            position: location,
+            map: map,
+            icon: icons[sentiment]
+        };
+        if (status)
+            markerOptions.animation = google.maps.Animation.DROP;
+        var marker = new google.maps.Marker(markerOptions);
+        markers.push(marker);
         google.maps.event.addListener(marker, "click", function () {
-                if (infowindow)infowindow.close();
-                infowindow = new google.maps.InfoWindow({
-                    content: '<div id="bodyContent">' + '<a href="https://twitter.com/' + user + '">' + '<b>' + user + '</b></a>: '
-                    + content + '</p>' +
+                infoWindow.setContent(
+                    '<div id="bodyContent">' + '<a href="https://twitter.com/' + user + '">' + '<b>' + user + '</b></a>: ' +
+                    content + '</p>' +
                     '<p><b>' + time + '</b></p>' +
                     '</div>'
-                });
-                infowindow.open(map, marker);
+                );
+                infoWindow.open(map, marker);
             });
-            return marker;
         }
-        google.maps.event.addDomListener(window, 'load', initialize);
     </script>
 </head>
 
@@ -180,18 +181,29 @@
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/1.4.5/socket.io.js"></script>
 <script>
+    function removeMarkers() {
+        for (var i = 0; i < markers.length; i++) {
+            markers[i].setMap(null);
+        }
+        markers = [];
+        }
+    google.maps.event.addDomListener(window, 'load', initMap);
+
+    var socket=io();
+    socket.on('toggle', function (newdata) {    //of the client in this case.
+        var tweets = newdata.tweet;
+        removeMarkers();
+        for (var i = 0; i < tweets.length; i++) {
+            createMarker(tweets[i]);
+        }
+    });
+    socket.on('newcoming', function (newdata) {
+        var tweet = newdata.tweet;
+        createMarker(tweet, true);
+    });
     function show(keyword) {
-        var socket=io.connect();
         socket.emit('clicked', {key: keyword});
-        socket.on('toggle', function (newdata) {    //of the client in this case.
-            var tweets = newdata.tweet;
-            var map = initMap();
-            for (var i = 0; i < tweets.length; i++) {
-                map.addMarker(createMarker(tweets[i]));
-            }
-        });
     }
 </script>
-     <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAkjLVH5J-Zwiwr7WQbdyh2x2rsP03kZ84&callback=initMap" type="text/javascript"></script>
   </body>
 </html>
